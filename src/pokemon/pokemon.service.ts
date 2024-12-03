@@ -77,6 +77,10 @@ export class PokemonService {
     return true;
   }
 
+  testConnection() {
+    console.log('Connected!!!');
+  }
+
   private handleExceptions(error: any) {
     console.log(error);
     if(error.code === 11000) throw new BadRequestException(`The property (${JSON.stringify(error.keyValue)}) is already used by another Pokemon`);
