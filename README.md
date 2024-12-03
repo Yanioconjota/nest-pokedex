@@ -2,6 +2,13 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
+---
+### Descripción
+---
+El repositorio nest-pokedex implementa una API RESTful utilizando el framework NestJS y el ODM Mongoose para gestionar una base de datos MongoDB. La API está diseñada para gestionar información sobre Pokémon, permitiendo a los usuarios realizar operaciones CRUD (Crear, Leer, Actualizar, Eliminar) sobre una colección de Pokémon almacenada en una base de datos.
+
+---
+
 ### Dependencias:
 - Docker [Descargar](https://docs.docker.com/desktop/setup/install/windows-install/)
 - Nest CLI: ```npm i -g @nestjs/cli```
