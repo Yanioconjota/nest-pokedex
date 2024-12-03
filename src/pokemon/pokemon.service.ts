@@ -22,8 +22,9 @@ export class PokemonService {
     }
   }
 
-  findAll() {
-    return `This action returns all pokemon`;
+  async findAll() {
+    const pokemon = await this.pokemonModel.find();
+    return pokemon;
   }
 
   async findOne(term: string) {
@@ -41,7 +42,7 @@ export class PokemonService {
       pokemon = await this.pokemonModel.findOne({ name: term.toLowerCase().trim() });
     }
 
-    if (!pokemon) throw new NotFoundException(`Pokemon with name or no ${term} not found`);
+    if (!pokemon) throw new NotFoundException(`Pokemon with id, name or no ${term} not found`);
     
 
     return pokemon;
@@ -63,13 +64,15 @@ export class PokemonService {
     }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} pokemon`;
+  async remove(id: string) {
+    const pokemon = await this.findOne(id);
+    await pokemon.deleteOne();
   }
 
   private handleExceptions(error: any) {
     console.log(error);
     if(error.code === 11000) throw new BadRequestException(`The property (${JSON.stringify(error.keyValue)}) is already used by another Pokemon`);
-      throw new InternalServerErrorException(`Can't create or update Prokemon - Check Server for logs`);
+    
+    throw new InternalServerErrorException(`Can't create or update Prokemon - Check Server for logs`);
   }
 }
