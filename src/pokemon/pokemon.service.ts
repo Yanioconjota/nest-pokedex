@@ -3,7 +3,7 @@ import { CreatePokemonDto, UpdatePokemonDto } from './dto';
 import { isValidObjectId, Model } from 'mongoose';
 import { Pokemon } from './entities/pokemon.entity';
 import { InjectModel } from '@nestjs/mongoose';
-import { alreadyExist } from 'src/shared/utils/error-messages.utils';
+
 
 @Injectable()
 export class PokemonService {
@@ -18,10 +18,7 @@ export class PokemonService {
       const pokemon = await this.pokemonModel.create(createPokemonDto);
       return pokemon;
     } catch (error) {
-      console.log(error);
-      if(error.code === 11000) throw new BadRequestException(alreadyExist(`${createPokemonDto.no}`, `Pokemon with id:`));
-      throw new InternalServerErrorException(`Can't Create Prokemon - Check Server for logs`);
-      
+      this.handleExceptions(error);
     }
   }
 
@@ -44,17 +41,35 @@ export class PokemonService {
       pokemon = await this.pokemonModel.findOne({ name: term.toLowerCase().trim() });
     }
 
-    if (!pokemon) throw new NotFoundException(`Pokemon with id, term or no ${term} not found`);
+    if (!pokemon) throw new NotFoundException(`Pokemon with name or no ${term} not found`);
     
 
     return pokemon;
   }
 
-  update(id: number, updatePokemonDto: UpdatePokemonDto) {
-    return `This action updates a #${id} pokemon`;
+  async update(term: string, updatePokemonDto: UpdatePokemonDto) {
+    const pokemon = await this.findOne(term);
+    
+    if (updatePokemonDto.name) {
+      updatePokemonDto.name = updatePokemonDto.name.toLowerCase();
+    }
+    try {
+
+      await pokemon.updateOne(updatePokemonDto, { new: true });
+      return {...pokemon.toJSON(), ...updatePokemonDto};
+
+    } catch (error) {
+      this.handleExceptions(error);
+    }
   }
 
   remove(id: number) {
     return `This action removes a #${id} pokemon`;
+  }
+
+  private handleExceptions(error: any) {
+    console.log(error);
+    if(error.code === 11000) throw new BadRequestException(`The property (${JSON.stringify(error.keyValue)}) is already used by another Pokemon`);
+      throw new InternalServerErrorException(`Can't create or update Prokemon - Check Server for logs`);
   }
 }
