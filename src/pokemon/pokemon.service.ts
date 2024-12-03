@@ -65,14 +65,22 @@ export class PokemonService {
   }
 
   async remove(id: string) {
-    const pokemon = await this.findOne(id);
-    await pokemon.deleteOne();
+    // Common delete
+    // const pokemon = await this.findOne(id);
+    // await pokemon.deleteOne();
+    
+    const { deletedCount } = await this.pokemonModel.deleteOne({_id: id});
+    if (deletedCount === 0) {
+      throw new BadRequestException(`Pokemon with id: ${id} not found`);
+      
+    }
+    return true;
   }
 
   private handleExceptions(error: any) {
     console.log(error);
     if(error.code === 11000) throw new BadRequestException(`The property (${JSON.stringify(error.keyValue)}) is already used by another Pokemon`);
     
-    throw new InternalServerErrorException(`Can't create or update Prokemon - Check Server for logs`);
+    throw new InternalServerErrorException(`Can't create or update Pokemon - Check Server for logs`);
   }
 }
