@@ -84,7 +84,7 @@ export class SeedService {
     await this.pokemonModel.deleteMany({});
 
     try {
-      const data = await this.httpAdapter.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=8');
+      const data = await this.httpAdapter.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=400');
       //Generamos un array de CreatePokemonDto 
       const pokemonToInsert: CreatePokemonDto[] = [];
   
