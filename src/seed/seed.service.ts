@@ -58,7 +58,7 @@ export class SeedService {
       const pokemonToInsert: CreatePokemonDto[] = [];
   
       data.results.forEach(({ name, url }) => {
-        const segments = url.split('/'); //[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '18',
+        const segments = url.split('/'); //[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '5', '' ]
         const no = +segments[segments.length - 2]; // el id viene en la penúltima posición de segments
   
         pokemonToInsert.push({name, no});
