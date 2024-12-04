@@ -423,4 +423,314 @@ findOne(@Param('id', ParseMongoIdPipe) id: string) {
   return this.pokemonService.findOne(id);
 }
 ```
+---
 
+## Ejecución del Seed de la DB
+Para este punto se creó un módulo de seed
+
+```
+seed
+├── interfaces
+│		└── poke-response.interface.ts
+├── seed.controller.ts
+├── seed.module.ts
+└── seed.service.ts
+```
+
+Seed solo necesita un solo método y manjear la lógica del mismo en un servicio
+```typescript
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { SeedService } from './seed.service';
+
+@Controller('seed')
+export class SeedController {
+  constructor(private readonly seedService: SeedService) {}
+
+  @Get()
+  executeSeed() {
+    return this.seedService.executeSeed();
+  }
+}
+
+```
+El método executeSeed llama a la api `https://pokeapi.co/api/v2/pokemon?limit=20` con los parámetros especificados y utilizaremos esa respuesta para popular la DB. A continuación mostraré tres enfoques distintos para popular la DB.
+
+1. En este approach importamos el ``create`` de ``pokemonService`` para manejar la inserción dentro del bucle de data
+
+```typescript
+async executeSeed() {
+
+    await this.pokemonModel.deleteMany({});
+
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=20'),
+      );
+  
+      const createPromises = data.results.map(async ({ name, url }) => {
+        const segments = url.split('/');
+				//[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '5', '' ]
+        const no = +segments[segments.length - 2];
+				 // el id viene en la penúltima posición de segments
+        try {
+          await this.pokemonService.create({ name, no });
+        } catch (error) {
+          //Se muestra el error de item duplicado sin cortar la ejecución
+          console.warn(`Pokemon with name "${name}" or no "${no}" already exists`);
+        }
+      });
+  
+      await Promise.all(createPromises); //Promise.all(createPromises): Ejecuta todas las inserciones en paralelo.
+      return { message: 'Seed executed successfully' };
+    } catch (error) {
+      throw new Error(`Failed to fetch data: ${error.message}`);
+    }
+  }
+
+```
+2. En este approach se maneja la inserción de todos lo items en simultaneo sin importar el servicio y basándonos unicamente en los métodos de inserción que acepta pokemonModel como insertMany en este caso, permitiéndonos tener una mejor perfomance.
+
+```typescript
+async executeSeed() {
+
+    //Borramos todos de antemano para evitar duplicados
+    await this.pokemonModel.deleteMany({});
+
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=8'),
+      );
+      //Generamos un array de CreatePokemonDto 
+      const pokemonToInsert: CreatePokemonDto[] = [];
+  
+      data.results.forEach(({ name, url }) => {
+        const segments = url.split('/');
+				//[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '5', '' ]
+        const no = +segments[segments.length - 2];
+				// el id viene en la penúltima posición de segments
+  
+        pokemonToInsert.push({name, no});
+      });
+      
+      //Insertamos el array en una sola consulta
+      this.pokemonModel.insertMany(pokemonToInsert);
+      return { message: 'Seed executed successfully' };
+    } catch (error) {
+      throw new Error(`Failed to fetch data: ${error.message}`);
+    }
+  }
+
+```
+3. Este approach es similar al anterior pero con la diferencia de que se maneja el get a través de un custom http adapter, permitiendo tener una aplicación escalable y fácil de mantener cuando se use una librería de terceros, el adapter nos permite wrappear esa implementación para modificarla o actualizarla en un módulo compartido y reutilizable.
+
+```typescript
+async executeSeed() {
+
+    //Borramos todos de antemano para evitar duplicados
+    await this.pokemonModel.deleteMany({});
+
+    try {
+      const data = await this.httpAdapter.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=400');
+      //Generamos un array de CreatePokemonDto 
+      const pokemonToInsert: CreatePokemonDto[] = [];
+  
+      data.results.forEach(({ name, url }) => {
+        const segments = url.split('/');
+				//[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '5', '' ]
+        const no = +segments[segments.length - 2];
+				// el id viene en la penúltima posición de segments
+  
+        pokemonToInsert.push({name, no});
+      });
+      
+      //Insertamos el array en una sola consulta
+      this.pokemonModel.insertMany(pokemonToInsert);
+      return { message: 'Seed executed successfully' };
+    } catch (error) {
+      throw new Error(`Failed to fetch data: ${error.message}`);
+    }
+  }
+```
+El seed, como notaran, no require DTO ni entity pero si una `interface` que ayudará a modelar la respuesta obtenida y tener todo el intellisense para manipularla.
+
+```typescript
+export interface PokeResponse {
+  count: number;
+  next: string;
+  previous: null;
+  results: Result[];
+}
+ 
+export interface Result {
+  name: string;
+  url: string;
+}
+```
+
+Este sería el ``seed.service`` al momento:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PokeResponse } from './interfaces/poke-response.interface';
+import { CreatePokemonDto } from 'src/pokemon/dto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Pokemon } from 'src/pokemon/entities/pokemon.entity';
+import { Model } from 'mongoose';
+import { AxiosAdapter } from 'src/shared/adapters/axios.adapter';
+
+@Injectable()
+export class SeedService {
+  constructor(
+    @InjectModel(Pokemon.name)
+    private readonly pokemonModel: Model<Pokemon>,
+    private readonly httpAdapter: AxiosAdapter
+    
+  ){}
+  async executeSeed() {
+
+    //Borramos todos de antemano para evitar duplicados
+    await this.pokemonModel.deleteMany({});
+
+    try {
+      const data = await this.httpAdapter.get<PokeResponse>('https://pokeapi.co/api/v2/pokemon?limit=400');
+      //Generamos un array de CreatePokemonDto 
+      const pokemonToInsert: CreatePokemonDto[] = [];
+  
+      data.results.forEach(({ name, url }) => {
+        const segments = url.split('/');
+        //[ 'https:', '', 'pokeapi.co', 'api', 'v2', 'pokemon', '5', '' ]
+        const no = +segments[segments.length - 2];
+        // el id viene en la penúltima posición de segments
+  
+        pokemonToInsert.push({name, no});
+      });
+      
+      //Insertamos el array en una sola consulta
+      this.pokemonModel.insertMany(pokemonToInsert);
+      return { message: 'Seed executed successfully' };
+    } catch (error) {
+      throw new Error(`Failed to fetch data: ${error.message}`);
+    }
+  }
+}
+
+```
+Algo que cabe destacar es el uso de un adapter personalizado ``httpAdapter``, el cual implementa la lógica para realizar solicitudes a la API de PokeAPI y encapsula la lógica de acceso. Este se encuentra en la ruta ``shared`` o ``common`` en la carpeta ``adapters``
+
+```typescript
+import { HttpService } from "@nestjs/axios";
+import { lastValueFrom } from "rxjs";
+import { HttpAdapter } from "../interfaces/http-adapter.interface";
+import { Injectable } from "@nestjs/common";
+
+@Injectable()
+export class AxiosAdapter implements HttpAdapter {
+
+  constructor(private readonly httpService: HttpService) {}
+
+  async get<T>(url: string): Promise<T> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get<T>(url),
+      );
+      return data;
+    } catch (error) {
+      throw new Error('Unexpected error - Check for logs');
+      
+    }
+  }
+
+}
+```
+
+### Importaciones
+
+```typescript
+import { HttpService } from "@nestjs/axios";
+import { lastValueFrom } from "rxjs";
+import { HttpAdapter } from "../interfaces/http-adapter.interface";
+import { Injectable } from "@nestjs/common";
+```
+
+- ``HttpService``: Proporcionado por ``@nestjs/axios``, es un cliente ``HTTP`` basado en ``Axios`` que permite realizar solicitudes ``HTTP`` en ``NestJS``.
+
+- ``lastValueFrom``: Función de ``RxJS`` utilizada para convertir un ``Observable`` en una ``Promesa``, ya que ``HttpService`` retorna un ``Observable``.
+
+- ``HttpAdapter``: Una interfaz personalizada que define las operaciones básicas de un adapter ``HTTP``, asegurando consistencia y reusabilidad en la implementación.
+
+- ``Injectable``: Marca la clase como un ``proveedor`` o ``provider`` que puede ser inyectado en otros componentes dentro del sistema de ``NestJS``.
+
+
+### Interfaz ``HttpAdapter``:
+```typescript
+export interface HttpAdapter {
+  get<T>(url: string): Promise<T>;
+}
+```
+Define un método genérico get que toma una URL como parámetro y devuelve una Promesa con el tipo de dato especificado.
+
+### Clase ``AxiosAdapter``:
+
+```typescript
+@Injectable()
+export class AxiosAdapter implements HttpAdapter {
+
+  constructor(private readonly httpService: HttpService) {}
+
+  async get<T>(url: string): Promise<T> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get<T>(url),
+      );
+      return data;
+    } catch (error) {
+      throw new Error('Unexpected error - Check for logs');
+    }
+  }
+}
+```
+
+1. ``@Injectable()``: Permite que la clase sea inyectada como dependencia en otros servicios o módulos.
+
+2. ``Constructor``: Inyecta HttpService, lo que permite que la clase use Axios a través del cliente HTTP de NestJS.
+
+3. Método ``get<T>(url: string): Promise<T>``: Implementa el método definido en la interfaz HttpAdapter.
+	- **Flujo del método**: Realiza una solicitud ``GET`` utilizando ``HttpService``.
+		- Convierte el ``Observable`` retornado por ``HttpService.get`` en una ``Promesa`` con ``lastValueFrom``.
+		- Extrae la propiedad ``data`` del objeto de respuesta de ``Axios``.
+		- Maneja errores con un bloque ``try-catch`` y lanza una ``excepción`` con un mensaje personalizado en caso de fallo.
+4. **Manejo de Errores**:
+	- Si ocurre algún error en la solicitud ``HTTP``, el bloque ``catch`` captura la excepción y lanza un error genérico con el mensaje ``'Unexpected error - Check for logs'``.
+
+### Cómo Funciona en Práctica
+- Entrada: Una URL para realizar una solicitud GET.
+
+- Proceso: Usa ``HttpService.get`` para realizar la solicitud.
+- Convierte el Observable en una Promesa para simplificar su uso.
+- Extrae y retorna los datos del cuerpo de la respuesta ``data``.
+- Salida: Un objeto del tipo genérico ``<T>`` con los datos obtenidos de la respuesta.
+
+
+*Puedes inyectar este adapter en un servicio para realizar solicitudes HTTP de manera modular y desacoplada*
+
+```typescript
+import { Injectable } from "@nestjs/common";
+import { AxiosAdapter } from "./adapters/axios.adapter";
+
+@Injectable()
+export class SomeService {
+  constructor(private readonly httpAdapter: AxiosAdapter) {}
+
+  async fetchData() {
+    const data = await this.httpAdapter.get('https://api.example.com/resource');
+    console.log(data);
+    return data;
+  }
+}
+```
+
+### Ventajas del Diseño
+- **Desacoplamiento**: La lógica de interacción con APIs externas se encapsula en el adapter, manteniendo el servicio limpio y enfocado en la lógica de negocio.
+- **Reusabilidad**: Otros servicios pueden reutilizar el adapter para realizar solicitudes HTTP sin replicar lógica.
+- **Facilidad de Pruebas**: Puedes simular la funcionalidad del adapter en pruebas unitarias para servicios que lo consumen.
+- **Interoperabilidad**: Si decides cambiar la implementación de Axios por otra librería (por ejemplo, fetch o got), solo necesitas modificar el adapter, sin afectar los servicios que lo consumen.
