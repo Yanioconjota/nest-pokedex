@@ -11,7 +11,7 @@ export class PokemonService {
   constructor(
     @InjectModel(Pokemon.name)
     private readonly pokemonModel: Model<Pokemon>) {}
-  async create(createPokemonDto: CreatePokemonDto) {
+  async create(createPokemonDto: CreatePokemonDto): Promise<CreatePokemonDto> {
     createPokemonDto.name = createPokemonDto.name.toLowerCase();
 
     try {
@@ -22,12 +22,12 @@ export class PokemonService {
     }
   }
 
-  async findAll() {
+  async findAll(): Promise<Pokemon[]> {
     const pokemon = await this.pokemonModel.find();
     return pokemon;
   }
 
-  async findOne(term: string) {
+  async findOne(term: string): Promise<Pokemon> {
     let pokemon: Pokemon;
     
     if (!isNaN(+term)) {
@@ -48,7 +48,7 @@ export class PokemonService {
     return pokemon;
   }
 
-  async update(term: string, updatePokemonDto: UpdatePokemonDto) {
+  async update(term: string, updatePokemonDto: UpdatePokemonDto): Promise<UpdatePokemonDto> {
     const pokemon = await this.findOne(term);
     
     if (updatePokemonDto.name) {
@@ -64,7 +64,7 @@ export class PokemonService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string): Promise<boolean> {
     // Common delete
     // const pokemon = await this.findOne(id);
     // await pokemon.deleteOne();
@@ -77,11 +77,7 @@ export class PokemonService {
     return true;
   }
 
-  testConnection() {
-    console.log('Connected!!!');
-  }
-
-  private handleExceptions(error: any) {
+  private handleExceptions(error: any): void {
     console.log(error);
     if(error.code === 11000) throw new BadRequestException(`The property (${JSON.stringify(error.keyValue)}) is already used by another Pokemon`);
     
