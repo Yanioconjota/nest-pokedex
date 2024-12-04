@@ -734,3 +734,157 @@ export class SomeService {
 - **Reusabilidad**: Otros servicios pueden reutilizar el adapter para realizar solicitudes HTTP sin replicar lógica.
 - **Facilidad de Pruebas**: Puedes simular la funcionalidad del adapter en pruebas unitarias para servicios que lo consumen.
 - **Interoperabilidad**: Si decides cambiar la implementación de Axios por otra librería (por ejemplo, fetch o got), solo necesitas modificar el adapter, sin afectar los servicios que lo consumen.
+
+---
+
+### Paginado:
+Para agregar la funcionalidad de paginado tomaremos el método ``getAll`` de ``pokemon.controller`` y le pasaremos los parámetros limit y offset. que a su vez recibirá ``findAll`` de ``pokemon.service``
+
+```typescript
+@Get()
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.pokemonService.findAll(paginationDto);
+  }
+
+```
+
+```typescript
+async findAll(paginationDto: PaginationDto): Promise<Pokemon[]> {
+
+    const { limit = 10, offset = 0 } = paginationDto;
+
+    const pokemon = await this.pokemonModel.find()
+      .limit(limit)
+      .skip(offset);
+    return pokemon;
+  }
+
+```
+
+Para ello creamos un ``DTO`` al cual llamamos ``PaginationDto`` de forma de que podamos agregar las validaciones necesarias para cada parámetro.
+
+```typescript
+import { IsNumber, IsOptional, IsPositive, Min } from "class-validator";
+
+export class PaginationDto {
+
+  @IsOptional()
+  @IsPositive()
+  @IsNumber()
+  @Min(1)
+  limit?: number;
+
+  @IsOptional()
+  @IsPositive()
+  @IsNumber()
+  offset?: number;
+}
+
+```
+
+Acá va a pasar algo muy interesante, en este momento todo parece estar bien pero olvidamos que los ``query`` parameters son recibidos como un ``string`` por ende, es necesario transformar esos valores al formato deseado. Para ello iremos al ``main.ts`` donde agregamos nuestras configuraciones y agregaremos lo siguiente:
+
+```typescript
+app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    }
+  }));
+
+```
+
+La opción ``transform`` en el ``ValidationPipe`` de ``NestJS`` activa la transformación automática de los datos entrantes al tipo especificado en los ``DTO`` *``(Data Transfer Objects)``*. Esto significa que ``NestJS`` intentará convertir los datos recibidos en el formato o tipo de datos definido en los decoradores de tu clase.
+
+#### Sin ``transform: true``
+Cuando transform no está habilitado, los datos enviados al controlador *(generalmente en el cuerpo de la solicitud)* se reciben como objetos literales de tipo ``any``. Esto significa que si tienes un DTO como este:
+
+```typescript
+export class CreatePokemonDto {
+  @IsString()
+  name: string;
+
+  @IsInt()
+  no: number;
+}
+```
+Y envías un cuerpo de solicitud como esta:
+
+```json
+{
+  "name": "Pikachu",
+  "no": "25"
+}
+```
+
+El valor de no se recibirá como una cadena ``(string)``, ya que NestJS no realiza automáticamente la conversión a número ``(number)``.
+
+
+#### Con ``transform: true``
+Cuando habilitas ``transform``, ``NestJS`` convierte automáticamente los datos en el tipo definido en el DTO. Usando el mismo ejemplo, si envías:
+
+```json
+{
+  "name": "Pikachu",
+  "no": "25"
+}
+```
+NestJS transforma el valor de no de string a number utilizando las reglas definidas en tu ``DTO`` (``@IsInt()`` en este caso).
+
+#### ``enableImplicitConversion: true``
+Al habilitar esta opción, ``NestJS`` realiza conversiones implícitas basándose en el tipo de las propiedades del ``DTO``, incluso si no usas decoradores como @``Type()`` de la librería ``class-transformer``.
+
+#### Ejemplo con ``enableImplicitConversion``
+
+```typescript
+export class CreatePokemonDto {
+  name: string;
+
+  no: number; // Implicitamente espera un número
+}
+```
+
+Si envías:
+```json
+{
+  "name": "Bulbasaur",
+  "no": "1"
+}
+```
+``NestJS`` transformará automáticamente ``"1"`` en el número ``1`` porque el tipo de no en el ``DTO`` es ``number``.
+
+#### Sin ``enableImplicitConversion``:
+Sin esta opción, necesitarías usar el decorador ``@Type()`` de la librería ``class-transformer`` para definir explícitamente cómo transformar los datos.
+
+```typescript
+import { Type } from 'class-transformer';
+
+export class CreatePokemonDto {
+  name: string;
+
+  @Type(() => Number) // Convierte explícitamente el valor a un número
+  no: number;
+}
+```
+
+#### Configuración Completa:
+Este es el ejemplo que tienes con una descripción de cada opción:
+
+```typescript
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true, // Elimina las propiedades que no están definidas en el DTO
+  forbidNonWhitelisted: true, // Rechaza solicitudes con propiedades no definidas en el DTO
+  transform: true, // Activa la transformación de datos a los tipos definidos en el DTO
+  transformOptions: {
+    enableImplicitConversion: true, // Permite conversiones basadas en los tipos del DTO
+  }
+}));
+```
+
+#### Beneficios de transform
+- **Simplifica el Código**: Ya no necesitas convertir manualmente los tipos de datos en tu controlador o servicio.
+- **Validación Más Eficiente**: Al transformar los datos, la validación (@IsInt(), @IsString(), etc.) funciona correctamente, ya que los datos ya están en el tipo esperado.
+- **Reduce Errores**: Minimiza errores relacionados con tipos de datos inconsistentes, especialmente al interactuar con servicios o bases de datos.
+- **Compatibilidad con Librerías**: La integración con class-transformer facilita la manipulación avanzada de datos si necesitas algo más allá de la conversión básica.
