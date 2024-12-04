@@ -28,7 +28,7 @@ $ yarn install
 ```bash
 $ docker compose up -d
 ```
-4. Correr el seed
+4. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
 
 ### Stack usado
 - [MongoDB](https://www.mongodb.com/)
