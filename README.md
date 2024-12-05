@@ -10,9 +10,10 @@ El repositorio nest-pokedex implementa una API RESTful utilizando el framework N
 ---
 
 ### Dependencias:
-- Docker [Descargar](https://docs.docker.com/desktop/setup/install/windows-install/)
+- Node v18 - [Descargar](https://nodejs.org/en/blog/release/v18.18.1)
+- Docker - [Descargar](https://docs.docker.com/desktop/setup/install/windows-install/)
 - Nest CLI: ```npm i -g @nestjs/cli```
-- Imagen de MongoDB
+- Imagen de MongoDB | imagen de mongo:5 ``--> docker-compose.yml``
 
 ---
 
@@ -28,7 +29,12 @@ $ yarn install
 ```bash
 $ docker compose up -d
 ```
-4. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
+4. Levantar la aplicación en modo watch:
+```bash
+$ yarn run start:dev
+```
+
+5. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
 
 ### Stack usado
 - [MongoDB](https://www.mongodb.com/)
