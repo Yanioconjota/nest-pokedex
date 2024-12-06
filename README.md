@@ -57,7 +57,7 @@ $ yarn run start:prod
 ```
 nest-pokedex/
 ├── src/
-│   ├── common/
+│   ├── shared/
 │   │   └── pipes/
 │   │       └── parse-mongo-id.pipe.ts
 │   ├── pokemon/
@@ -435,7 +435,7 @@ findOne(@Param('id', ParseMongoIdPipe) id: string) {
 Para este punto se creó un módulo de seed
 
 ```
-seed
+seed/
 ├── interfaces
 │     └── poke-response.interface.ts
 ├── seed.controller.ts
@@ -894,3 +894,208 @@ app.useGlobalPipes(new ValidationPipe({
 - **Validación Más Eficiente**: Al transformar los datos, la validación (@IsInt(), @IsString(), etc.) funciona correctamente, ya que los datos ya están en el tipo esperado.
 - **Reduce Errores**: Minimiza errores relacionados con tipos de datos inconsistentes, especialmente al interactuar con servicios o bases de datos.
 - **Compatibilidad con Librerías**: La integración con class-transformer facilita la manipulación avanzada de datos si necesitas algo más allá de la conversión básica.
+
+---
+### Variables de entorno:
+Crearemos un ``.env`` file en el root del proyecto. Una buena práctica es crear un ``.env.template`` con la estructura que tendrá el original y agregar a los archivos ``ignore`` el .env para no exponer claves o puertos.
+
+```bash
+MONGODB=mongodb://local:00000/your-database
+PORT=1515
+```
+
+```bash
+$ npm i @nestjs/config
+```
+
+Ir al ``app.module.ts`` y agregar
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+	imports: [ConfigModule.forRoot()],})
+	export class AppModule {}
+```
+En el siguiente ejemplo si agregó el ``ConfigModule`` al principio, garantizando la carga de las variables de entorno (``process.env.MONGODB``) antes de su lectura.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { PokemonModule } from './pokemon/pokemon.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { SharedModule } from './shared/shared.module';
+import { SeedModule } from './seed/seed.module';
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(), // Carga
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname,'..','public'),
+    }),
+    MongooseModule.forRoot(process.env.MONGODB), // Lectura
+    PokemonModule,
+    SharedModule,
+    SeedModule
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+
+```
+
+En teoría podemos accesar nuestras variables de entorno en toda nuestra app por medio de ``process.env`` pero ``@nestjs/config`` nos ofrece un servicio para manejar de nuestras variables de entorno propiamente y asegurarnos de que esten cargadas o asignar un valor por defecto.
+
+lo primero es crear un archivo en la carpeta ``shared`` o ``common`` un archivo llamado ``env.config.ts`` o ``app.config.ts`` queda a su discresión.
+
+```
+shared/
+└── config
+    └── env.config.ts
+```
+
+Este exporta una función con la configuración de nuestras variables de entorno, los valores son leídos de las variables de entorno (process.env), o se asigna un valor por defecto si estas no están definidas.
+```typescript
+export const EnvConfiguration = () => ({
+  environment: process.env.NODE_ENV || 'dev',
+  mongodb: process.env.MONGO_DB,
+  port: process.env.PORT || 3002,
+  defaultLimit: process.env.DEFAULT_LIMIT || 7
+});
+```
+
+- ``environment``: Indica el entorno en el que se ejecuta la aplicación, como ``dev``, ``prod``, ``test``, etc. Valor por defecto: ``dev``.
+- ``mongodb``: Dirección o URI de conexión a la base de datos MongoDB. Nota: Debes asegurarte de que la variable ``MONGO_DB`` esté configurada en las variables de entorno.
+- ``port``: Especifica el puerto en el que la aplicación escucha. Valor por defecto: ``3002``.
+- ``defaultLimit``: Define un límite por defecto, que podría ser utilizado para paginación o restricciones de API. Valor por defecto: 7.
+
+Para poder utilizarla necesitaremos importar esta función dentro del ``ConfigurationModule`` del ``app.module``
+
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { PokemonModule } from './pokemon/pokemon.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { SharedModule } from './shared/shared.module';
+import { SeedModule } from './seed/seed.module';
+import { ConfigModule } from '@nestjs/config';
+import { EnvConfiguration } from './shared/config/env.config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      load: [EnvConfiguration]
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname,'..','public'),
+    }),
+    MongooseModule.forRoot(process.env.MONGODB),
+    PokemonModule,
+    SharedModule,
+    SeedModule
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+
+```
+
+Importamos ``ConfigModule`` en el módulo donde está ubicado el servicio:
+```typescript
+@Module({
+  imports: [
+    ConfigModule,
+    MongooseModule.forFeature([
+      {
+        name: Pokemon.name,
+        schema: PokemonSchema,
+      }])
+  ],
+  controllers: [PokemonController],
+  providers: [PokemonService],
+  exports: [PokemonService, MongooseModule],
+})
+export class PokemonModule {}
+```
+
+Para luego para usarla en cualquier servicio debemos inyectar el servicio en su constructor
+
+```typescript
+
+// Imports
+@Injectable()
+export class PokemonService {
+  private readonly defaultLimit!: number;
+
+  constructor(private readonly configService:ConfigService){
+    this.defaultLimit = configService.get<number>('defaultLimit');
+  }
+
+  async findAll(paginationDto: PaginationDto): Promise<Pokemon[]> {
+
+    const { limit = this.defaultLimit, offset = 0 } = paginationDto;
+
+    const pokemon = await this.pokemonModel.find()
+      .limit(limit)
+      .skip(offset);
+    return pokemon;
+  }
+
+//... Resto del código
+
+}
+
+```
+
+Especificando el tipo en nuesta variable y en el servicio nos aseguramos de que lo transforme en el tipo correcto al momento de recibir su valor.
+
+```typescript
+export const EnvConfiguration = () => ({
+  environment: process.env.NODE_ENV || 'dev',
+  mongodb: process.env.MONGO_DB,
+  port: process.env.PORT || 3002,
+  defaultLimit: process.env.DEFAULT_LIMIT || 7
+});
+```
+cabe destacar que ``EnvConfiguration`` solo funciona en los módulos de ``nest``, tanto en ``app.module`` como en ``main.ts`` debemos acceder a las variables de entorno globales mediante el uso de ``proces.env.VARIABLE``
+
+```bash
+#MONGODB=mongodb://local:00000/your-database
+PORT=1515
+
+```
+
+```typescript
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      load: [EnvConfiguration]
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname,'..','public'),
+    }),
+    MongooseModule.forRoot(process.env.MONGODB),
+    PokemonModule,
+    SharedModule,
+    SeedModule
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+```
+
+Actualmente tenemos valores por defecto si nos olvidamos de asignar o crear nuestras variables de entorno, este no es el caso de ``mongodb``, ya que si no la asignamos tendremos el siguiente error por defecto:
+
+```bash
+ERROR [MongooseModule] Unable to connect to the database. Retrying (1)...
+MongooseError: The `uri` parameter to `openUri()` must be a string, got "undefined". Make sure the first parameter to `mongoose.connect()` or `mongoose.createConnection()` is a string.
+```
+Podemos asignar una valor por defecto pero no sería la idea, en este caso tendremos que manejar ese error de otra forma para que la persona que levante el proyecto sepa que le faltó agregar la variable de entorno con la conexión a la DB se una forma más intuitiva.
