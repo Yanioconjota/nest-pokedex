@@ -29,14 +29,14 @@ $ yarn install
 ```bash
 $ docker compose up -d
 ```
-4. Levantar la aplicación en modo watch:
+4. Cloanr el archivo ``.env.template`` y renombrar ka copia a ``.env`` y asignar las variables de entorno necesarias.
+
+5. Levantar la aplicación en modo watch:
 ```bash
 $ yarn run start:dev
 ```
 
-5. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
-
-6. Cloanr el archivo ``.env.template`` y renombrar ka copia a ``.env`` y asignar las variables de entorno necesarias.
+6. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
 
 ### Stack usado
 - [MongoDB](https://www.mongodb.com/)
