@@ -36,6 +36,8 @@ $ yarn run start:dev
 
 5. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
 
+6. Cloanr el archivo ``.env.template`` y renombrar ka copia a ``.env`` y asignar las variables de entorno necesarias.
+
 ### Stack usado
 - [MongoDB](https://www.mongodb.com/)
 - [Nest](https://github.com/nestjs/nest)
@@ -900,7 +902,7 @@ app.useGlobalPipes(new ValidationPipe({
 Crearemos un ``.env`` file en el root del proyecto. Una buena práctica es crear un ``.env.template`` con la estructura que tendrá el original y agregar a los archivos ``ignore`` el .env para no exponer claves o puertos.
 
 ```bash
-MONGODB=mongodb://local:00000/your-database
+MONGODB=mongodb://localhost:00000/your-database
 PORT=1515
 ```
 
@@ -1067,7 +1069,7 @@ export const EnvConfiguration = () => ({
 cabe destacar que ``EnvConfiguration`` solo funciona en los módulos de ``nest``, tanto en ``app.module`` como en ``main.ts`` debemos acceder a las variables de entorno globales mediante el uso de ``proces.env.VARIABLE``
 
 ```bash
-#MONGODB=mongodb://local:00000/your-database
+#MONGODB=mongodb://localhost:00000/your-database
 PORT=1515
 
 ```
@@ -1099,3 +1101,100 @@ ERROR [MongooseModule] Unable to connect to the database. Retrying (1)...
 MongooseError: The `uri` parameter to `openUri()` must be a string, got "undefined". Make sure the first parameter to `mongoose.connect()` or `mongoose.createConnection()` is a string.
 ```
 Podemos asignar una valor por defecto pero no sería la idea, en este caso tendremos que manejar ese error de otra forma para que la persona que levante el proyecto sepa que le faltó agregar la variable de entorno con la conexión a la DB se una forma más intuitiva.
+
+Ahora haremos una validación utilizando el paquete [joi](https://www.npmjs.com/package/joi) mediante:
+```bash
+$ yarn add joi
+$ npm i joi
+```
+#### ¿Que es joi?
+El paquete ``joi`` es una biblioteca de validación para JavaScript que permite definir esquemas para validar objetos, cadenas, números, fechas, matrices y otros tipos de datos. Es ampliamente utilizado en aplicaciones ``Node.js`` para asegurarse de que los datos cumplen con ciertos requisitos antes de procesarlos.
+
+#### Características Principales
+- Definición de Esquemas: Permite crear esquemas que describen cómo deben lucir los datos válidos.
+- Validación de Datos: Valida datos como objetos JSON, formularios de entrada, variables de entorno, etc.
+- Mensajes Personalizados: Proporciona mensajes de error claros y personalizables cuando los datos no cumplen con los requisitos.
+- Extensibilidad: Soporta la creación de reglas personalizadas para casos específicos.
+
+Después de instalarlo, en la ruta donde agregamos nuesto `env.config` agregamos un archivo llamado: `joi.valdiation.ts`:
+
+```
+shared/
+└── config
+    ├── env.config.ts
+    └── joi.valdiation.ts <--
+```
+
+```typescript
+import * as Joi from 'joi';
+
+export const JoiValidationSchema = Joi.object({
+  MONGODB: Joi.required(),
+  PORT: Joi.number().default(3000),
+  DEFAULT_LIMIT: Joi.number().default(5),
+});
+
+```
+
+Luego lo importamos en el ``app.module``:
+```typescript
+//...Resto de los imports
+import { JoiValidationSchema } from './shared/config/joi.validation';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      load: [EnvConfiguration],
+      validationSchema: JoiValidationSchema
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname,'..','public'),
+    }),
+    MongooseModule.forRoot(process.env.MONGODB),
+    PokemonModule,
+    SharedModule,
+    SeedModule
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+
+```
+
+En este caso, el uso de `EnvConfiguration` y `JoiValidationSchema` puede parecer redundante, sin embargo, es bueno saber que pueden trabajar en conjunto, ya que `JoiValidationSchema` si asignamos un valor por defecto a una variable de entorno, y esta no existe, ``joi`` la va a crear por nosotros y le asignará dicho valor. Ej:
+
+Supongamos que nuestros archivos lucen así:
+```typescript
+
+// EnvConfiguration:
+export const EnvConfiguration = () => ({
+  environment: process.env.NODE_ENV || 'dev',
+  mongodb: process.env.MONGO_DB,
+  port: process.env.PORT || 3002,
+  defaultLimit: process.env.DEFAULT_LIMIT || 7
+});
+
+// JoiValidationSchema:
+
+export const JoiValidationSchema = Joi.object({
+  MONGODB: Joi.required(),
+  PORT: Joi.number().default(3000),
+  DEFAULT_LIMIT: Joi.number().default(6),
+});
+
+// .env:
+MONGODB=mongodb://localhost:00000/your-database
+PORT=1515
+```
+Como notarán no existe ``DEFAULT_LIMIT``. En este caso el ``defaultLimit`` será ``6`` ¿Por qué?
+Al no existir ``DEFAULT_LIMIT``, `Joi` lo crea y le asigna el valor por defecto, de manera en que al momento en que la propiedad `defaultLimit` de `EnvConfiguration` busque `process.env.DEFAULT_LIMIT` este ya habrá sido creado por `Joi` pero como `string`, ya que las variables de entorno siempre se crean por defecto como `string` y el `Joi.number()` es una validación, no un mapeo. si queremos mapear ese valor, entonces debemos hacerlo en el `EnvConfiguration`:
+
+```typescript
+export const EnvConfiguration = () => ({
+  environment: process.env.NODE_ENV || 'dev',
+  mongodb: process.env.MONGO_DB,
+  port: process.env.PORT || 3002,
+  defaultLimit: +process.env.DEFAULT_LIMIT || 7
+});
+```
