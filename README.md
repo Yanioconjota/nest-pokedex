@@ -1198,3 +1198,77 @@ export const EnvConfiguration = () => ({
   defaultLimit: +process.env.DEFAULT_LIMIT || 7
 });
 ```
+
+### Configuración de la base de datos MongoDB en Railway
+
+## Configuración de la base de datos MongoDB en Railway
+
+Railway es una plataforma que permite configurar servicios como MongoDB de forma gratuita (hasta cierto límite). Sigue estos pasos para configurar tu base de datos y conectarla a tu aplicación NestJS.
+
+### 1. Crear una cuenta en Railway
+1. Ve a [Railway.app](https://railway.app/) y regístrate con tu cuenta de GitHub o correo electrónico.
+2. Una vez dentro, haz clic en el botón **"Start a New Project"**.
+
+---
+
+### 2. Agregar MongoDB como plugin
+1. En tu nuevo proyecto, selecciona la opción **"Add Plugin"**.
+2. Busca y selecciona **MongoDB**.
+3. Railway configurará automáticamente una instancia de MongoDB para ti. Una vez lista, verás el mensaje **"Plugin added successfully"**.
+
+---
+
+### 3. Obtener la URI de conexión
+1. Haz clic en el plugin **MongoDB** que acabas de crear.
+2. En la sección **"Variables"**, copia la URI de conexión, que se encuentra en `MONGO_PUBLIC_URL`
+
+### 4. Configurar la conexión en tu aplicación
+1. Agrega la URI de conexión en tu archivo ``.env``:
+```bash
+    MONGODB=mongodb://mongo:sdsdsdsdsdsddsdsdsdsdsd@autorack.proxy.rlwy.net:55555
+  ```
+2. Configura el módulo de Mongoose en tu archivo ``AppModule``:
+  ```typescript
+    import { Module } from '@nestjs/common';
+    import { ServeStaticModule } from '@nestjs/serve-static';
+    import { join } from 'path';
+    import { PokemonModule } from './pokemon/pokemon.module';
+    import { MongooseModule } from '@nestjs/mongoose';
+    import { SharedModule } from './shared/shared.module';
+    import { SeedModule } from './seed/seed.module';
+    import { ConfigModule } from '@nestjs/config';
+    import { EnvConfiguration } from './shared/config/env.config';
+    import { JoiValidationSchema } from './shared/config/joi.validation';
+
+    @Module({
+      imports: [
+        ConfigModule.forRoot({
+          load: [EnvConfiguration],
+          validationSchema: JoiValidationSchema
+        }),
+        ServeStaticModule.forRoot({
+          rootPath: join(__dirname,'..','public'),
+        }),
+        MongooseModule.forRoot(process.env.MONGODB, {
+          dbName: process.env.DBNAME
+        }),
+        PokemonModule,
+        SharedModule,
+        SeedModule
+      ],
+      controllers: [],
+      providers: [],
+    })
+    export class AppModule {}
+  ```
+  ``dbName: process.env.DBNAME`` Apunta a `DBNAME=yourdatabasename` y agrega ese nombre a la db en creada en railway
+
+### 5. Sembrar datos en la base de datos
+1. Levantar la aplicación de nuevo con `yarn start:dev`
+2. Correr el seed `http://localhost:3000/api/v2/seed/`
+
+### 6. Verificar la conexión
+Asegúrate de que tu aplicación puede conectarse a la base de datos correctamente:
+
+1. Corre tu aplicación y revisa los logs para confirmar que se ha conectado a MongoDB sin problemas.
+2. También puedes usar herramientas como ``MongoDB Compass`` o ``TablePlus`` para conectarte a la base de datos y verificar que los datos se hayan insertado correctamente.
