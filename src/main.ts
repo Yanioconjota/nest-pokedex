@@ -26,6 +26,6 @@ async function bootstrap() {
   app.enableCors();
 
   await app.listen(port);
-  console.log(`APP RUNNING ON PORT: ${port}`, process.env.MONGODBDEV);
+  console.log(`APP RUNNING ON PORT: ${port}`);
 }
 bootstrap();
