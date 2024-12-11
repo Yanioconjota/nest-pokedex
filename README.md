@@ -902,7 +902,7 @@ app.useGlobalPipes(new ValidationPipe({
 Crearemos un ``.env`` file en el root del proyecto. Una buena práctica es crear un ``.env.template`` con la estructura que tendrá el original y agregar a los archivos ``ignore`` el .env para no exponer claves o puertos.
 
 ```bash
-MONGODB=mongodb://localhost:00000/your-database
+MONGODB=mongodb://localhost:[DATABASE_PORT_NUMBER]/your-database
 PORT=1515
 ```
 
@@ -1069,7 +1069,7 @@ export const EnvConfiguration = () => ({
 cabe destacar que ``EnvConfiguration`` solo funciona en los módulos de ``nest``, tanto en ``app.module`` como en ``main.ts`` debemos acceder a las variables de entorno globales mediante el uso de ``proces.env.VARIABLE``
 
 ```bash
-#MONGODB=mongodb://localhost:00000/your-database
+#MONGODB=mongodb://localhost:[DATABASE_PORT_NUMBER]/your-database
 PORT=1515
 
 ```
@@ -1184,7 +1184,7 @@ export const JoiValidationSchema = Joi.object({
 });
 
 // .env:
-MONGODB=mongodb://localhost:00000/your-database
+MONGODB=mongodb://localhost:[DATABASE_PORT_NUMBER]/your-database
 PORT=1515
 ```
 Como notarán no existe ``DEFAULT_LIMIT``. En este caso el ``defaultLimit`` será ``6`` ¿Por qué?
