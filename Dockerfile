@@ -1,5 +1,5 @@
 # Instalar dependencias solo cuando sea necesario
-FROM node:18-alpine3.15 AS deps
+FROM node:21-alpine3.18 AS deps
 # Consulta https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine 
 # para entender por qué podría ser necesario libc6-compat.
 
@@ -13,14 +13,14 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 # Construir la aplicación reutilizando las dependencias en caché
-FROM node:18-alpine3.15 AS builder
+FROM node:21-alpine3.18 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN yarn build
 
 # Imagen de producción, copia todos los archivos y ejecuta la aplicación
-FROM node:18-alpine3.15 AS runner
+FROM node:21-alpine3.18 AS runner
 
 # Establecer el directorio de trabajo
 WORKDIR /usr/src/app

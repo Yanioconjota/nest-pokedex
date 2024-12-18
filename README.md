@@ -1272,3 +1272,24 @@ Asegúrate de que tu aplicación puede conectarse a la base de datos correctamen
 
 1. Corre tu aplicación y revisa los logs para confirmar que se ha conectado a MongoDB sin problemas.
 2. También puedes usar herramientas como ``MongoDB Compass`` o ``TablePlus`` para conectarte a la base de datos y verificar que los datos se hayan insertado correctamente.
+
+## Dockerizar aplicación:
+
+#### Build
+```
+docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build
+```
+
+#### Run
+```
+docker-compose -f docker-compose.prod.yml --env-file .env.prod up
+```
+
+#### Nota
+Por defecto, __docker-compose__ usa el archivo ```.env```, por lo que si tienen el archivo .env y lo configuran con sus variables de entorno de producción, bastaría con
+```
+docker-compose -f docker-compose.prod.yml up --build
+```
+
+La opción ``-f`` en el comando de ``docker-compose`` se utiliza para especificar un archivo de configuración diferente al predeterminado ``(docker-compose.yml)``.
+
