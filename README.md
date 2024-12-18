@@ -1306,7 +1306,12 @@ Asegúrate de que tu aplicación puede conectarse a la base de datos correctamen
 1. Corre tu aplicación y revisa los logs para confirmar que se ha conectado a MongoDB sin problemas.
 2. También puedes usar herramientas como ``MongoDB Compass`` o ``TablePlus`` para conectarte a la base de datos y verificar que los datos se hayan insertado correctamente.
 
-### Creando un ``Production Build``
+## Desplegar la aplicación en railway
+De la misma manera en que creamos una conexión con nuestra ``db`` en [railway](https://railway.app/dashboard), vamos a desplegar nuestra aplicación, en el proyecto de nuestro dashboard donde generamos la conexión vamos a hacer click en el botón ``create`` y seleccionaremos la opción ``GitHub Repo``, para ello debemos darle acceso a ``railway`` a uno o todos los repos, lo seleccionamos y posteriormente le asignaremos valores a las ``variables de entorno``. Si el ``deploy`` no se hizo automáticamente, siempre podemos hacerlo manualmente.
+
+Haciendo click en el deploy de nuestro repo podremos acceder a la pestaña ``Deployments`` y veremos la URL de nuestro proyecto desplegado. [https://nest-pokedex-production-ce33.up.railway.app/](https://nest-pokedex-production-ce33.up.railway.app/)
+
+### Creando un ``Production Build`` con ``Docker``
 
 1. crear un archivo ``docker-compose.prod.yml``. Podemos usar como template el original y finalmente obtendríamos ek siguiente resultado:
 
