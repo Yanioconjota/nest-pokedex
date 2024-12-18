@@ -38,6 +38,39 @@ $ yarn run start:dev
 
 6. Correr el seed: [http://localhost:3000/api/v2/seed](http://localhost:3000/api/v2/seed)
 
+### Production Build
+
+Adicionalmente si queremos preparar un ``Production Build`` realizaremos estos pasos:
+
+1. Crear el archivo ``.env.prod``.
+2. Llenar las variables de entorno.
+3. Crear la nueva imagen:
+
+    #### Build
+    ```
+    docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build
+    ```
+
+    #### Run
+    ```
+    docker-compose -f docker-compose.prod.yml --env-file .env.prod up
+    ```
+
+    ```
+    docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+    ```
+
+#### Nota
+Por defecto, __docker-compose__ usa el archivo ```.env```, por lo que si tienen el archivo .env y lo configuran con sus variables de entorno de producción, bastaría con
+```
+docker-compose -f docker-compose.prod.yml up --build
+```
+
+- La opción ``-f`` en el comando de ``docker-compose`` se utiliza para especificar un archivo de configuración diferente al predeterminado ``(docker-compose.yml)``.
+- ``--env-file`` especifiva un ``.env`` distinto, en este caso ``.env.prod``.
+
+
+
 ### Stack usado
 - [MongoDB](https://www.mongodb.com/)
 - [Nest](https://github.com/nestjs/nest)
@@ -1273,7 +1306,104 @@ Asegúrate de que tu aplicación puede conectarse a la base de datos correctamen
 1. Corre tu aplicación y revisa los logs para confirmar que se ha conectado a MongoDB sin problemas.
 2. También puedes usar herramientas como ``MongoDB Compass`` o ``TablePlus`` para conectarte a la base de datos y verificar que los datos se hayan insertado correctamente.
 
-## Dockerizar aplicación:
+### Creando un ``Production Build``
+
+1. crear un archivo ``docker-compose.prod.yml``. Podemos usar como template el original y finalmente obtendríamos ek siguiente resultado:
+
+```Dockerfile
+version: '3'
+
+services:
+  pokedexapp:
+    depends_on:
+      - db
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: pokedex-docker
+    container_name: pokedexapp
+    restart: always # reiniciar el contenedor si se detiene
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      MONGODB: ${MONGODB}
+      PORT: ${PORT}
+      DEFAULT_LIMIT: ${DEFAULT_LIMIT}
+
+  db:
+    image: mongo:5
+    container_name: mongo-poke
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      MONGODB_DATABASE: nest-pokemon
+    volumes:
+      - ./mongo:/data/db
+```
+Se crean 2 servicios, ``pokedex`` y ``db``, el segundo crea una base de datos a partir de una imagen de ``mongoDB:5`` mapeando el puerto de nuestro filesystem con el de la imagen y le asigna un valor a la variable de entorno ``MONGODB_DATABASE`` y le asignamos un ``volumen`` para que los cambios persistan. El primer servicio no se va a iniciar hasta que ``db`` esté funcionando, ya que ``depends_on`` se encarga de ello, el ``contexto`` de nuestro ``build`` especificado por un punto ``context: .`` indica que está en la ubicación del ``docker-compose`` y seguidamente especificamos el nombre del ``Dockerfile`` a cargo de generar el ``build``. Cómo esta es la imagen de la app, vamos a especificar las variables de entorno en la cración de este contenedor también, y tomará los valores que se encuentren en el archivo .env especificado.
+
+2. Generar el Dockerfile
+
+```Dockerfile
+# Instalar dependencias solo cuando sea necesario
+FROM node:21-alpine3.18 AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
+
+# Construir la aplicación reutilizando las dependencias en caché
+FROM node:21-alpine3.18 AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN yarn build
+
+# Imagen de producción, copia todos los archivos y ejecuta la aplicación
+FROM node:21-alpine3.18 AS runner
+
+# Establecer el directorio de trabajo
+WORKDIR /usr/src/app
+
+# Copiar archivos de configuración de dependencias
+COPY package.json yarn.lock ./
+
+# Instalar solo las dependencias necesarias para producción
+RUN yarn install --prod
+
+# Copiar los archivos compilados desde la etapa de construcción
+COPY --from=builder /app/dist ./dist
+
+# Comando por defecto para ejecutar la aplicación
+CMD [ "node","dist/main" ]
+```
+1. **Primera etapa: `deps`**
+   - Usa una imagen base ligera de Node.js.
+   - Instala dependencias del sistema necesarias (`libc6-compat`).
+   - Copia los archivos `package.json` y `yarn.lock`.
+   - Ejecuta `yarn install --frozen-lockfile` para instalar las dependencias garantizando versiones consistentes.
+
+2. **Segunda etapa: `builder`**
+   - Prepara el entorno para construir la aplicación.
+   - Reutiliza las dependencias de la etapa `deps` (caché).
+   - Copia todo el código fuente de la aplicación.
+   - Construye la aplicación con `yarn build`, generando los archivos finales en el directorio `dist`.
+
+3. **Tercera etapa: `runner`**
+   - Prepara una imagen de producción ligera.
+   - Establece el directorio de trabajo en `/usr/src/app`.
+   - Instala solo las dependencias necesarias para producción (`yarn install --prod`).
+   - Copia los archivos compilados desde la etapa `builder`.
+   - Define el comando por defecto para ejecutar la aplicación (`node dist/main`).
+
+### Ventajas
+
+- **Uso eficiente de caché:** Las dependencias se instalan una sola vez y se reutilizan.
+- **Optimización:** La imagen final solo incluye los artefactos necesarios para producción, reduciendo el tamaño de la imagen.
+- **Separación de etapas:** Facilita el mantenimiento, la organización y la depuración del Dockerfile.
+
+### Comandos para levantar la app
 
 #### Build
 ```
@@ -1285,11 +1415,10 @@ docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build
 docker-compose -f docker-compose.prod.yml --env-file .env.prod up
 ```
 
+```
+docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+```
+
 #### Nota
-Por defecto, __docker-compose__ usa el archivo ```.env```, por lo que si tienen el archivo .env y lo configuran con sus variables de entorno de producción, bastaría con
-```
-docker-compose -f docker-compose.prod.yml up --build
-```
-
-La opción ``-f`` en el comando de ``docker-compose`` se utiliza para especificar un archivo de configuración diferente al predeterminado ``(docker-compose.yml)``.
-
+- La opción ``-f`` en el comando de ``docker-compose`` se utiliza para especificar un archivo de configuración diferente al predeterminado ``(docker-compose.yml)``.
+- ``--env-file`` especifiva un ``.env`` distinto, en este caso ``.env.prod``.
